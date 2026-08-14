@@ -1,0 +1,39 @@
+{
+  "name": "mail-bean",
+  "version": "0.0.1",
+  "description": "E-mail extractor for Actual Budget",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "mail-bean": "./bin/mail-bean.js"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "engines": {
+    "node": "^22.22.3"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "dev": "tsx --env-file=.env src/index.ts",
+    "lint": "oxlint --type-aware",
+    "lint:fix": "oxlint --type-aware --fix",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm test"
+  },
+  "author": "Kevin Hernandez",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "oxlint": "^1.78.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}
