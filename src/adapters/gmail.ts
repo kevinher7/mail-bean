@@ -19,10 +19,7 @@ export const query = [
   "newer_than:1m",
 ].join(" ");
 
-export const fetchGmailMessages = async (
-  config: GmailConfig,
-  query: string,
-) => {
+export const fetchGmailMessages = async (config: GmailConfig) => {
   const auth = new googleAuth.OAuth2({
     clientId: config.clientId,
     clientSecret: config.clientSecret,
@@ -54,7 +51,7 @@ export const fetchGmailMessages = async (
 
   const emails = await Promise.all(
     emailIds.map(async (id) => {
-      const { data } = await gmail.users.messages.get({
+      const { data: message } = await gmail.users.messages.get({
         userId: "me",
         id,
         format: "raw",
@@ -62,7 +59,7 @@ export const fetchGmailMessages = async (
 
       return {
         id,
-        raw: Buffer.from(data.raw ?? "", "base64url"),
+        raw: Buffer.from(message.raw ?? "", "base64url"),
       };
     }),
   );
