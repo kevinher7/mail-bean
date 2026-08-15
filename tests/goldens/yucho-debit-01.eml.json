@@ -1,11 +1,11 @@
 [
   {
     "date": "2026-08-11",
+    "time": "10:50:56",
     "amount": -3171,
     "currency": "JPY",
     "sourceAccount": "yucho",
     "payee": "RAKUTEN MOBILE USAGE F",
-    "dedupId": "482f3eb24ee4dea2a643e488340576c5",
-    "memo": "承認番号 486552"
+    "dedupId": "yucho-486552"
   }
 ]

@@ -1,11 +1,11 @@
 [
   {
     "date": "2026-08-14",
+    "time": "17:01:13",
     "amount": -5000,
     "currency": "JPY",
     "sourceAccount": "smbc",
     "payee": "SUICA GOOGLEPAY",
-    "dedupId": "59613d50465462260bc63e3841af822d",
-    "memo": "承認番号 471570"
+    "dedupId": "smbc-471570"
   }
 ]
