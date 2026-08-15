@@ -13,13 +13,20 @@ const BANK_SENDERS = {
 
 const EMAIL_SUBJECTS = ["ご利用のお知らせ"];
 
-export const query = [
+const query = [
   `from:{${Object.values(BANK_SENDERS).join(" ")}}`,
   `subject:{${Object.values(EMAIL_SUBJECTS).join(" ")}}`,
   "newer_than:1m",
 ].join(" ");
 
-export const fetchGmailMessages = async (config: GmailConfig) => {
+export type RawEmail = {
+  id: string;
+  raw: Buffer;
+};
+
+export const fetchGmailMessages = async (
+  config: GmailConfig,
+): Promise<RawEmail[]> => {
   const auth = new googleAuth.OAuth2({
     clientId: config.clientId,
     clientSecret: config.clientSecret,
