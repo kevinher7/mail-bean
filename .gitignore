@@ -1,6 +1,8 @@
 node_modules/
 dist/
 .env
+.env.*
+!.env.dist
 *.token.json
 
 .actual/
