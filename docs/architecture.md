@@ -1,7 +1,8 @@
 # mail-bean — Architecture & Decisions
 
-Status: design agreed, toolchain set up, contract not yet written (see §9)
-Last updated: 2026-08-15
+Status: Gmail source and a first parser working end to end against fixtures;
+contract not yet extracted into `domain/` (see §9)
+Last updated: 2026-08-16
 Upstream issue: [kevinher7/nixos#150](https://github.com/kevinher7/nixos/issues/150)
 
 ## Purpose
@@ -58,13 +59,13 @@ Reversible later via `pnpm import`.
 
 ### Runtime dependencies
 
-| Package | Purpose | Native code |
-|---|---|---|
-| `@stricli/core` | CLI | no |
-| `googleapis` | Gmail | no |
-| `@actual-app/api` | sink | **yes** — better-sqlite3 |
-| `mailparser` | MIME + ISO-2022-JP decoding | no |
-| `zod` | config + parser output validation | no |
+| Package | Purpose | Native code | Status |
+|---|---|---|---|
+| `@stricli/core` | CLI | no | not yet installed |
+| `@googleapis/gmail` | Gmail | no | installed |
+| `@actual-app/api` | sink | **yes** — better-sqlite3 | next step |
+| `mailparser` | MIME + ISO-2022-JP decoding | no | installed |
+| `zod` | config + parser output validation | no | installed, not yet used |
 
 Only `@actual-app/api` requires a compiler. Confirm the exact native dep with
 `npm ls better-sqlite3` after the first install — the assumption is that it is pulled
@@ -82,8 +83,16 @@ stays a plain module.
 |---|---|
 | `MailSource` | `gmail`, `maildir` |
 | `Parser` | one per issuer, dispatched by a registry |
-| `Sink` | `actual`, `csv` (dry-run) |
+| `Sink` | `actual` — **one implementation**, see below |
 | `Classifier` | `openai` (local LLM), `null` (default) |
+
+`Sink` is the exception to the two-implementations rule. The CSV sink was dropped
+(see Rejected alternatives), leaving `actual` alone. It stays a seam anyway because it
+is the only component that needs a native compiler, a server and a credential to
+construct — so the alternative to a fake is that no pipeline test can run at all. The
+rule is therefore: **two or more real implementations, *or* a single implementation
+whose construction is too expensive to reach from a test.** Nothing else in the system
+qualifies under the second clause.
 
 ### The dependency rule
 
@@ -116,9 +125,10 @@ unless each one repeats `extends` — a correctness rule quietly falls from `err
 The overrides are added as the directories appear, not up front; they guard nothing
 while `domain/` and `parsers/` are empty.
 
-The payoff is concrete: `maildir` source + `csv` sink runs the entire pipeline offline
-with no credentials and no network. That is also what makes the repo's
-"synthetic fixtures only" privacy commitment achievable.
+The payoff is concrete: the `maildir` source runs source → parse → normalize offline
+with no credentials and no network, emitting JSON. Only the final write to Actual is
+unreachable that way, and that is what the fake `Sink` covers. This is also what makes
+the repo's "synthetic fixtures only" privacy commitment achievable.
 
 ### Why parsers are not under `adapters/`
 
@@ -165,6 +175,7 @@ The central boundary. Every parser emits it; every sink consumes it.
 ```ts
 export const Transaction = z.object({
   date:          z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  time:          z.string().regex(/^\d{2}:\d{2}:\d{2}$/), // JST, as printed in the mail
   amount:        z.number().int(),      // minor units, signed, negative = outflow
   currency:      z.literal("JPY"),
   sourceAccount: z.string(),            // logical name, NOT an Actual UUID
@@ -172,7 +183,6 @@ export const Transaction = z.object({
   dedupId:       z.string(),
   memo:          z.string().optional(),
   category:      z.string().optional(),
-  rawRef:        z.string().optional(), // gmail message id, for audit
 });
 ```
 
@@ -182,21 +192,50 @@ export const Transaction = z.object({
   "where does account-routing config live" question.)*
 - **`RawEmail.body` is already decoded UTF-8.** Encoding handling (ISO-2022-JP,
   Shift_JIS) belongs to the mail adapter, so no parser ever sees an encoding.
+- **`time` is carried but not sent to Actual**, which stores a date only. It is kept
+  because both issuers print it, it costs nothing, and it is the tiebreaker a human
+  needs when two identical charges land on the same day.
+- **There is no `rawRef`.** It was specified as "the Gmail message id, for audit",
+  implemented, and then removed unused — nothing ever read it, and §3 deliberately keeps
+  the message id out of the identity path anyway, so no sink was ever going to. It also
+  cannot be produced by the `maildir` source, so it made goldens depend on which source
+  ran. If a message pointer is wanted later, the thing to store is the RFC 5322
+  `Message-ID` header, not the API id: it is searchable from the Gmail UI as
+  `rfc822msgid:<value>`, it survives export, and `maildir` can produce it too. The place
+  it will actually earn its keep is the *unparsed* mail path (exit code 1, §6), which
+  holds the `RawEmail` already and needs no field on `Transaction`.
 
 ### Idempotency
 
 `dedupId` is passed to Actual as `imported_id`, which Actual dedups on per account.
 
 ```ts
-sha256([parserId, date, amount, payeeRaw, seq].join("\0")).slice(0, 32)
+`${sourceAccount}-${approvalNumber}`   // e.g. "smbc-471570"
 ```
 
-- NUL separator so `"ab"+"c"` cannot collide with `"a"+"bc"`.
-- **Deliberately not keyed on the Gmail message id** — a re-delivered mail would
-  otherwise import twice.
-- **`seq` disambiguates genuine duplicate purchases.** Two identical charges (same
-  merchant, amount, day) would otherwise produce one id and Actual would silently
-  swallow the second. See open questions.
+**This replaces the original content hash** (`sha256([parserId, date, amount, payeeRaw,
+seq].join("\0")).slice(0, 32)`). Both issuers print an issuer-assigned approval number
+(承認番号) in the notification mail, and every parser must already capture it to
+recognise the mail at all. Using it directly is better than hashing the content:
+
+- **It is the issuer's own identity for the authorization**, not a guess derived from
+  fields that happen to look distinct. Two genuinely separate charges at the same shop,
+  for the same amount, on the same day carry different approval numbers.
+- **It dissolves the `seq` problem.** `seq` existed only to break ties the content hash
+  could not, and its counting strategy — per batch, per day, persisted? — was an open
+  question with no good answer. There is nothing left to count.
+- **Still not keyed on the Gmail message id** — a re-delivered mail must not import
+  twice. That property is preserved.
+- It is human-readable in Actual's import view, which a 32-char hash is not.
+
+The `sourceAccount` prefix namespaces it, since two issuers can independently mint the
+same approval number.
+
+**Open risk:** approval numbers are ~6 digits and are not guaranteed unique over time —
+an issuer may recycle them. A collision would silently drop a real transaction. If that
+is ever observed, prefix with the date (`smbc-2026-08-14-471570`) rather than returning
+to a content hash. Not doing it pre-emptively because it makes every existing id
+change, and no recycling has been seen yet.
 
 ---
 
@@ -245,13 +284,18 @@ six subcommands.
 | Command | Purpose | Needs credentials |
 |---|---|---|
 | `run` | fetch, parse, push, label | yes |
-| `run --dry-run` | real Gmail, CSV out, writes nothing | Gmail only |
-| `replay <dir>` | `.eml` directory → CSV, fully offline | no |
+| `run --dry-run` | real Gmail, JSON out, writes nothing | Gmail only |
+| `replay <dir>` | `.eml` directory → JSON on stdout, fully offline | no |
 | `parse <file.eml>` | one file → JSON on stdout | no |
 | `auth` | one-time OAuth consent, prints refresh token | no |
 | `accounts` | list Actual account names + UUIDs | Actual only |
 
 Convention: data to stdout, structured JSONL events to stderr.
+
+`--dry-run`, `replay` and `parse` all emit the same thing — the normalized
+`Transaction[]` as JSON — so there is one output format to learn and one to test.
+Piping to `jq` covers every case CSV was wanted for, and unlike CSV it survives an
+optional field being added without breaking anyone's column offsets.
 
 **`scanner: { caseStyle: "allow-kebab-for-camel" }` is required** — Stricli matches flag
 names exactly by default, so a `dryRun` flag would only accept `--dryRun`.
@@ -474,14 +518,21 @@ mail-bean/
 │   ├── parsers/{registry,rakuten}.ts
 │   ├── adapters/
 │   │   ├── mail/{gmail,maildir}.ts
-│   │   ├── sink/{actual,csv}.ts
+│   │   ├── sink/actual.ts
 │   │   └── classifier/{openai,null}.ts
 │   └── commands/         # <name>.ts (spec) + <name>.impl.ts (handler, lazy-loaded)
 └── tests/
     ├── fixtures/*.eml    # synthetic only
-    ├── dedup.test.ts
+    ├── goldens/*.json    # committed, reviewable; regenerated with `vitest -u`
     └── parsers/*.test.ts
 ```
+
+**Goldens are only ever rewritten by an explicit `vitest -u`.** A normal `vitest run`
+never touches an existing golden; it fails on any diff. The one implicit write is a
+*missing* golden being created on first run, and even that fails instead of writing when
+`CI` is set — which is why goldens are committed. The workflow is therefore `-u`, read
+the diff, then commit: the assertion is not "the suite went green", it is "the change
+was reviewed".
 
 One file per command with an explicit hand-written registry in `app.ts`. Auto-discovery
 was rejected: it degrades the registry from a type-checked object literal to a runtime
@@ -504,20 +555,33 @@ scratch directory.
 
 ## 9. Build order
 
-1. **Contract** — `.gitignore`, `package.json`, `tsconfig.json`, `domain/*`, `ports.ts`,
-   `dedup.test.ts`. ~120 lines, no network, no credentials, nothing needing a compiler.
-   *Toolchain done; `domain/*`, `ports.ts` and `dedup.test.ts` remain.* Until a test
-   exists `npm test` exits 1 on "no test files found", so `npm run check` fails — this
-   is expected and resolves itself at the end of this step.
-2. **Offline vertical slice** — `maildir` source → one parser → `csv` sink →
-   `pipeline.ts`, driven by a throwaway `src/scratch.ts` via `tsx`. No CLI framework
-   yet. If the seams feel wrong here, they are cheap to fix.
-3. **Actual sink** — against a throwaway budget file first. Populate `accountMap` once
-   `accounts` can read the UUIDs back.
-4. **Gmail source** — swap the source out. *The parsers must not change by a single
-   line.* If they do, something has leaked across a seam.
-5. **CLI** (`@stricli/core`), then `flake.nix`, nixos module, timer.
-6. **Classifier** last, off by default.
+**This order was not followed, and the revision below is descriptive, not aspirational.**
+What actually happened: the Gmail source and two parsers were built first, directly under
+`adapters/`, with no `domain/`, no `ports.ts` and no `pipeline.ts`. That inverted steps 1
+and 4 of the original plan. It worked out — real mail proved the parsers early, and the
+regex-per-issuer shape survived contact — but it means the dependency rule in §2 has
+never been enforced against anything, because none of the layers it names exist yet.
+
+1. ~~**Contract first**~~ — *superseded.* Toolchain is done. `domain/*` and `ports.ts`
+   were never extracted; `Transaction` currently lives as a plain type inside
+   `adapters/parser.ts`. `dedup.test.ts` is no longer needed at all — §3's `dedupId` is
+   now a template string over a field the parser already captures, not a hash with its
+   own module.
+2. **Parsers + Gmail source + golden harness** — *done.* Two issuers (yucho, smbc),
+   scrubbed fixtures, committed goldens, `npm run check` green.
+3. **Actual sink** ← *next.* Against a throwaway budget file first. Populate `accountMap`
+   once `accounts` can read the UUIDs back. This is the first step needing a native
+   toolchain. See `docs/02-actual-sink.md`.
+4. **Extract the seams** — `domain/`, `ports.ts`, `pipeline.ts`, `parsers/registry.ts`,
+   and the oxlint `no-restricted-imports` overrides that enforce §2. Deliberately *after*
+   the sink: the sink is the second real consumer of `Transaction`, and extracting a
+   contract with one consumer is guessing. Adding the third issuer is the trigger for
+   `parsers/registry.ts` specifically.
+5. **`maildir` source + `replay`** — the offline path. *The parsers must not change by a
+   single line.* If they do, something has leaked across a seam. This is now the step
+   that tests §2's central claim, since the Gmail source came first.
+6. **CLI** (`@stricli/core`), then `flake.nix`, nixos module, timer.
+7. **Classifier** last, off by default.
 
 ### Prerequisites with external latency
 
@@ -539,11 +603,19 @@ scratch directory.
   ingests only the immediate 利用通知 (auth) mail per issuer and the registry drops
   settlement/statement mail. Reconciling both is a matching problem not worth solving
   in v1; Actual's own reconciliation UI covers the remainder.
-- **Duplicate-purchase collisions.** `seq` exists in `dedupId` for this, but the
-  counting strategy (per batch? per day? persisted?) is undecided. Same family of
-  problem as the above.
+- ~~**Duplicate-purchase collisions.**~~ *Resolved* by keying `dedupId` on the issuer's
+  approval number instead of a content hash — see §3. The residual risk is approval-number
+  recycling, which is recorded there.
 - **Category list source for the classifier.** Lean: read it live from Actual over the
   existing sink connection, so there is one source of truth and no drift.
+- **Where the source-assigned message id gets attached, if it ever does.** §3 removed
+  `rawRef` from the contract. The open part is the unparsed-mail path: exit code 1 says
+  "some messages unparsed" but nothing yet says *which*, and that is where a
+  `rfc822msgid:` pointer belongs.
+- **`sourceAccount` is `string` in the schema but a union in the parser.** The
+  implementation has `"yucho" | "smbc"` with a `TODO: Make into enum`. Widening to
+  `string` at the contract is probably right — `accountMap` is operator config and a new
+  issuer should not require a type change — but the two disagree today.
 
 ---
 
@@ -560,6 +632,9 @@ scratch directory.
 | Auto-discovered commands | See §8. |
 | Classes + `implements` for ports | Structural typing makes it ceremony; function types and factories are leaner. |
 | A database for processed state | The Gmail label already is the state. |
+| A `csv` sink | Dropped. It existed to give `Sink` a second implementation and to make `--dry-run`/`replay` printable, but JSON on stdout does both jobs with no sink, no column ordering to bikeshed, and no breakage when an optional field is added. `jq` covers the spreadsheet case. See §5. |
+| `rawRef` on `Transaction` | Written, never read, and unproducible by the `maildir` source. See §3. |
+| `seq` in `dedupId` | Made unnecessary by keying on the issuer's approval number. See §3. |
 | `typescript-eslint`, `dependency-cruiser` | Neither supports TypeScript 7. See §1. |
 | Nested per-directory `.oxlintrc.json` | Silently drops the root's `rules` and `categories` without `extends`. See §2. |
 | `rimraf` in the build script | POSIX `rm -rf` is enough; deployment is NixOS, development is darwin. |

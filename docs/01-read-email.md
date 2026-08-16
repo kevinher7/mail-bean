@@ -1,26 +1,31 @@
 # Milestone 01 — Read email, dry-run
 
-Status: not started
-Last updated: 2026-08-15
+Status: **done in substance, via a different route than planned.** See "What actually
+happened" below. Next milestone: [02-actual-sink.md](./02-actual-sink.md).
+Last updated: 2026-08-16
 Depends on: [architecture.md](./architecture.md)
 
 ## Goal
 
-Read real mail from Gmail, run it through the pipeline, print CSV to stdout. Write
-nothing anywhere.
+Read real mail from Gmail, parse it into normalized transactions, print them to stdout.
+Write nothing anywhere.
 
 ```
-Gmail → Parse → Normalize → CSV on stdout
+Gmail → Parse → Normalize → JSON on stdout
 ```
+
+Originally this said *CSV*. The CSV sink has been dropped project-wide — see
+architecture.md §5 and Rejected alternatives. JSON is what every read-only command emits
+now.
 
 This deliberately stops short of the Actual sink. That is the riskiest seam (§1) and
 the only dependency needing a compiler, so **this entire milestone builds without a
-native toolchain.** Do not install `@actual-app/api` yet.
+native toolchain.** Do not install `@actual-app/api` yet — that is milestone 02.
 
 ### Done when
 
 ```bash
-tsx src/scratch.ts        # real Gmail, CSV to stdout
+npm run dev               # real Gmail, transactions to stdout
 npm run check             # typecheck + lint + tests all green
 ```
 
@@ -28,9 +33,31 @@ and:
 
 - No message is labelled. No transaction reaches Actual.
 - `npm test` passes offline, with no credentials, on synthetic fixtures only.
-- Swapping the maildir source for the Gmail one changed **no line under `parsers/`**.
-  That last point is the real test — §2's dependency rule is either true here or it
-  was never true.
+
+---
+
+## What actually happened
+
+The build order was inverted. §3 (Gmail source) was built before §1 (contract) and §2
+(offline slice), so the milestone completed from the other end.
+
+| Planned | Actual |
+|---|---|
+| §1 `domain/*`, `ports.ts`, `dedup.test.ts` | **not built.** `Transaction` is a plain type inside `adapters/parser.ts`. `dedup.ts` is no longer needed — `dedupId` is now a template string, not a hash. |
+| §2 `maildir` source, sink, `parsers/registry.ts`, `pipeline.ts` | **not built.** Parsers are a sender-keyed regex table in `adapters/parser.ts`. |
+| §2 golden harness | **built** — `tests/parser.test.ts`, two fixtures, two goldens. |
+| §3 `config.ts`, Gmail adapter, driver | **built** — `config.ts`, `adapters/gmail.ts`, `src/index.ts`. |
+
+What this bought: real mail exercised the parsers immediately, and the regex-per-issuer
+shape survived contact with both issuers' encodings before any abstraction was committed
+to. What it cost: §2's dependency rule has never been enforced against anything, because
+none of the layers it names exist; and the milestone's headline proof — *swapping the
+source changes no line under `parsers/`* — **has not been demonstrated**, because there
+is only one source. That proof moves to architecture.md §9 step 5.
+
+The two remaining pieces of this milestone (`maildir` source, `replay`) are deliberately
+deferred until after the Actual sink, so that the contract gets extracted with two real
+consumers instead of one.
 
 ---
 
@@ -108,14 +135,14 @@ architecture.md §9 step 2, with one deliberate divergence (see below).
 
 | File | Contents |
 |---|---|
-| `adapters/mail/maildir.ts` | Read a directory of `.eml`, decode with `mailparser` |
-| `adapters/sink/csv.ts` | |
-| `parsers/registry.ts` | Dispatch by `matches()` |
-| `parsers/<issuer>.ts` | Start with a passthrough that matches everything |
-| `pipeline.ts` | |
-| `tests/pipeline.golden.test.ts` | |
-| `tests/fixtures/*.eml` | Synthetic only |
-| `tests/goldens/*.json` | Committed, reviewable |
+| `adapters/mail/maildir.ts` | Read a directory of `.eml`, decode with `mailparser` — *deferred to §9 step 5* |
+| ~~`adapters/sink/csv.ts`~~ | Dropped project-wide; read-only commands emit JSON |
+| `parsers/registry.ts` | Dispatch by `matches()` — *deferred; two issuers do not yet need it* |
+| `parsers/<issuer>.ts` | *Deferred;* currently a sender-keyed table in `adapters/parser.ts` |
+| `pipeline.ts` | *Deferred to §9 step 4* |
+| `tests/parser.test.ts` | **Built.** Globs fixtures, one case each, `toMatchFileSnapshot` |
+| `tests/fixtures/*.eml` | **Built** — synthetic only, 2 issuers |
+| `tests/goldens/*.json` | **Built** — committed, reviewable |
 
 `.eml` is a single message in RFC 5322 MIME form, headers and body as they came off the
 wire. `mailparser` handles the MIME structure, RFC 2047 encoded-word headers, and the
@@ -127,41 +154,40 @@ Note the adapter is named `maildir` in §8, but Maildir is a specific Unix forma
 
 ### Goldens
 
-Snapshot the normalized `Transaction[]` as JSON, **not** the CSV. Golden the CSV and a
-column reorder breaks every parser test at once, asserting sink formatting inside parser
-tests. Test `csv.ts` separately against two or three hand-built transactions.
+Snapshot the normalized `Transaction[]` as JSON. Use `toMatchFileSnapshot` rather than
+`toMatchSnapshot` — it writes files at a path you choose, so a parser change shows up as
+a reviewable diff instead of being buried in `__snapshots__/`.
 
-Use `toMatchFileSnapshot` rather than `toMatchSnapshot` — it writes files at a path you
-choose, so a parser change shows up as a reviewable diff instead of being buried in
-`__snapshots__/`.
+**A golden must be a pure function of the email bytes.** Anything else in it — an id
+assigned by whichever source delivered the mail, a timestamp, a run counter — makes the
+goldens diff for reasons that have nothing to do with the parsers, at exactly the moment
+you need them to be trustworthy. This is what killed `rawRef` (architecture.md §3): it
+was the Gmail message id, so the same fixture would golden differently depending on
+whether the Gmail or the `maildir` source ran, and step 5's whole proof is that swapping
+sources changes nothing.
 
-**The offline harness leaves `rawRef` undefined.** §3 defines it as the Gmail message id,
-which the maildir source cannot produce, so setting it offline to anything at all —
-`Message-ID`, the filename — guarantees the first real `run` rewrites every golden. It is
-optional in the schema; leave it unset and the goldens stay valid across the §3 source
-swap, which is the one property this milestone is trying to prove.
-
-Nothing extra is needed to make this work: `JSON.stringify` drops undefined-valued keys,
-so an unset `rawRef` simply does not appear in the golden. Watch for `exactOptionalPropertyTypes`
-here — depending on what zod's `.optional()` infers, an explicit `rawRef: undefined` may
-not be assignable where omitting the key is.
+The path taken instead of the original "leave it undefined" advice was to remove the
+field from the contract entirely, since nothing ever read it.
 
 ```ts
-// tests/pipeline.golden.test.ts
-const fixtures = (await readdir("tests/fixtures")).filter((n) => n.endsWith(".eml"));
+// tests/parser.test.ts — as built
+const FIXTURES = new URL("./fixtures/", import.meta.url);
+const fixtures = (await readdir(FIXTURES)).filter((f) => f.endsWith(".eml"));
 
-describe("pipeline", () => {
-  for (const f of fixtures) {
-    it(f, async () => {
-      const txns = await collect(makeMaildirSource(`tests/fixtures/${f}`), registry);
-      await expect(JSON.stringify(txns, null, 2)).toMatchFileSnapshot(`goldens/${f}.json`);
-    });
-  }
+test.for(fixtures)("%s", async (fixture) => {
+  const raw = await readFile(new URL(fixture, FIXTURES));
+  const transactions = await parseEmailsTransactions([{ id: fixture, raw }]);
+
+  await expect(`${JSON.stringify(transactions, null, 2)}\n`)
+    .toMatchFileSnapshot(`./goldens/${fixture}.json`);
 });
 ```
 
-First run writes the goldens; eyeball them, then commit. `vitest --watch` is the
-exploratory loop.
+`await` on `toMatchFileSnapshot` is mandatory — without it Vitest degrades the assertion
+to `expect.soft` and the test runs on past a mismatch.
+
+Adding an issuer is: drop in a scrubbed `.eml`, `npx vitest run -u`, read the generated
+golden, commit. No test code changes. `vitest --watch` is the exploratory loop.
 
 This step needs no credentials, so it is the work to do **while** the Google Cloud setup
 and fixture collection are still in flight.
@@ -172,35 +198,42 @@ and fixture collection are still in flight.
 
 | File | Contents |
 |---|---|
-| `config.ts` | env → `Config`, validated with zod. Names in architecture.md §7. |
-| `adapters/mail/gmail.ts` | Query from §4, `mailparser` for decoding |
-| `src/scratch.ts` | Thin credentialed driver — source + print, nothing else |
+| `config.ts` | env → `Config`. **Built** — hand-rolled, not yet zod. Names in architecture.md §7. |
+| `adapters/gmail.ts` | Query from §4, raw bytes out. **Built** (flat path, not `adapters/mail/`) |
+| `src/index.ts` | Thin credentialed driver — fetch, parse, print. **Built** |
 
 Plus a one-off auth flow to obtain the refresh token. The consent URL needs **both**
 `access_type=offline` and `prompt=consent`; without the latter a repeat authorization
 silently returns no refresh token.
 
-Swap `makeMaildirSource` for `makeGmailSource`. That swap is the milestone.
+`src/index.ts` is currently playing the role the plan gave `src/scratch.ts` — a
+credentialed driver that constructs adapters directly. It exists because the golden
+harness cannot cover this half: tests must stay offline and credential-free, or the
+property that makes them valuable is gone and real email ends up in the repo. It gets
+replaced by `commands/run.impl.ts` + `wiring.ts` at architecture.md §9 step 6.
 
-`src/scratch.ts` is throwaway. It exists because the golden harness cannot cover this
-half — tests must stay offline and credential-free, or the property that makes them
-valuable is gone and real email ends up in the repo. It is deleted at §9 step 5 when
-`commands/run.impl.ts` and `wiring.ts` replace it.
+It violates §2's dependency rule by constructing adapters directly, but no
+`excludeFiles` entry is needed yet — the `no-restricted-imports` overrides are only
+added once `domain/` and `parsers/` exist.
 
-Two consequences while it exists: it constructs adapters directly, which violates §2, so
-it needs an `excludeFiles` entry in `.oxlintrc.json`; and `tsconfig.build.json` includes
-`src`, so it lands in `dist/` unless excluded there too.
+**Known rough edges in the driver**, to clean up when it is replaced or sooner:
+`if (!transactions)` is dead code (`Promise.all` always resolves to an array), and the
+`null` entries *inside* that array — one per unrecognised email — are never filtered or
+reported. That second one is the exit-code-1 path from architecture.md §6 and is
+currently silent.
 
 ---
 
 ## Dependencies
 
 ```bash
-npm i googleapis mailparser
+npm i @googleapis/gmail mailparser
 npm i -D @types/mailparser
 ```
 
-`googleapis` ships its own typings. `mailparser` does not, hence the separate `@types`.
+`@googleapis/gmail` rather than the full `googleapis` — the umbrella package pulls every
+Google API's typings, and only Gmail is needed. It ships its own typings; `mailparser`
+does not, hence the separate `@types`.
 
 ---
 
@@ -228,26 +261,31 @@ impossible rather than merely discouraged.
 
 ## Divergence from architecture.md
 
-§9 step 2 specifies a throwaway `src/scratch.ts` driving the offline pipeline. This
-milestone puts that wiring in `tests/` as a golden harness instead, and keeps only a
-thin credentialed driver in `src/scratch.ts` for step 3.
+The original plan put a throwaway `src/scratch.ts` in charge of driving the offline
+pipeline. This milestone put that wiring in `tests/` as a golden harness instead — which
+was the right call and has been folded back into architecture.md §9.
 
-Rationale: the maildir + csv path is already described in §2 as running the whole
-pipeline offline with no credentials, which is exactly what makes a good regression
-suite. Living in `tests/` also means it needs no dependency-rule exemption and never
-reaches `dist/`. The throwaway becomes a permanent asset instead of being deleted.
+Rationale: the offline path runs the whole parse chain with no credentials, which is
+exactly what makes a good regression suite. Living in `tests/` also means it needs no
+dependency-rule exemption and never reaches `dist/`. The throwaway becomes a permanent
+asset instead of being deleted.
 
-Fold this back into §9 once it has been proven in practice.
+The larger divergence — building the Gmail source before the contract — is recorded
+under "What actually happened" above and in architecture.md §9.
 
 ---
 
 ## Open decisions
 
-- **`RawEmail` shape.** Undefined in architecture.md beyond "`body` is already decoded
-  UTF-8". Minimum: id, from, subject, receivedAt, body.
-- **`WriteResult` shape.** Referenced by `Sink` in §2, never defined.
-- **`seq` in `dedupId`.** §10 flags the counting strategy as undecided. Not blocking —
-  duplicate-purchase collisions cannot occur until something is actually written — but
-  the field has to exist in the hash from the start or every id changes later.
+- **`RawEmail` shape.** Currently `{ id: string; raw: Buffer }` — raw bytes, decoded by
+  the parser via `mailparser`, not by the source. This contradicts architecture.md §3's
+  "`RawEmail.body` is already decoded UTF-8, so no parser ever sees an encoding". Decide
+  at §9 step 4: either the source decodes and the parser takes text, or §3's promise gets
+  rewritten. The current shape is the one that has actually been exercised.
+- **`WriteResult` shape.** Referenced by `Sink` in §2, never defined. Milestone 02.
+- ~~**`seq` in `dedupId`.**~~ Resolved — `dedupId` is keyed on the issuer's approval
+  number, so there is nothing to count. See architecture.md §3.
+- **`sourceAccount` typing.** `"yucho" | "smbc"` in the parser, `z.string()` in the
+  contract. See architecture.md §10.
 - **`MAIL_BEAN_ACCOUNT_MAP` as JSON-in-env.** Provisional, per §7. Not exercised by this
-  milestone, since routing to accounts is the sink's problem.
+  milestone, since routing to accounts is the sink's problem — milestone 02 decides it.
