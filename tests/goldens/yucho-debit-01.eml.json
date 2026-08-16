@@ -6,6 +6,7 @@
     "currency": "JPY",
     "sourceAccount": "yucho",
     "payee": "RAKUTEN MOBILE USAGE F",
+    "rawRef": "",
     "dedupId": "yucho-486552"
   }
 ]
