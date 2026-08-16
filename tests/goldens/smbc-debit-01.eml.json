@@ -6,7 +6,6 @@
     "currency": "JPY",
     "sourceAccount": "smbc",
     "payee": "SUICA GOOGLEPAY",
-    "rawRef": "",
     "dedupId": "smbc-471570"
   }
 ]

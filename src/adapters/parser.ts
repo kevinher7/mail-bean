@@ -8,7 +8,6 @@ type Transaction = {
   currency: string;
   sourceAccount: string; // TODO: Make into enum
   payee: string;
-  rawRef: string;
   dedupId: string;
 };
 
@@ -30,10 +29,7 @@ const ISSUERS: Record<string, Issuer> = {
   },
 };
 
-const parseTransaction = (
-  email: ParsedMail,
-  rawRef: string,
-): Transaction | null => {
+const parseTransaction = (email: ParsedMail): Transaction | null => {
   const sender = email.from?.value[0]?.address?.toLowerCase() ?? "";
   const issuer = ISSUERS[sender];
 
@@ -58,20 +54,21 @@ const parseTransaction = (
     currency: "JPY",
     sourceAccount: issuer.sourceAccount,
     payee: payee.trim(),
-    rawRef,
     dedupId: `${issuer.sourceAccount}-${approval}`,
   };
 };
 
 export const parseEmailsTransactions = async (emails: RawEmail[]) => {
   return await Promise.all(
-    emails.map(async ({ id, raw }) => {
-      const parsedEmail = await simpleParser(raw, {
+    emails.map(async (email) => {
+      const parsedEmail = await simpleParser(email.raw, {
         skipTextToHtml: true,
         skipTextLinks: true,
       });
 
-      return parseTransaction(parsedEmail, id);
+      // TODO: Right now we don't use the minted "id" field from the emails
+      // maybe try to surface a mail url of sorts for easy verification
+      return parseTransaction(parsedEmail);
     }),
   );
 };

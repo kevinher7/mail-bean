@@ -13,13 +13,6 @@ test.for(await loadFixturesPaths())("%s", async (fixture) => {
   const raw = await readFile(new URL(fixture, fixturesPath));
   const transactions = await parseEmailsTransactions([{ id: fixture, raw }]);
 
-  // Strip rawRef from transactions (not part of the test)
-  for (const transaction of transactions) {
-    if (transaction) {
-      transaction.rawRef = "";
-    }
-  }
-
   await expect(
     `${JSON.stringify(transactions, null, 2)}\n`,
   ).toMatchFileSnapshot(`./goldens/${fixture}.json`);
