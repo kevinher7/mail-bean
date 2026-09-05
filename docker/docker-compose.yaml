@@ -1,0 +1,22 @@
+name: mail-bean
+
+services:
+  actual:
+    image: actualbudget/actual-server:26.8.1-alpine
+
+    ports:
+      - target: 5006
+        host_ip: 127.0.0.1
+        published: 5006
+
+    volumes:
+      - actual-data:/data
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5006/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  actual-data:
