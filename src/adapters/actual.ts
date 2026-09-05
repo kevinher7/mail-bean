@@ -41,6 +41,7 @@ const writeTransactionsByAccount = async (
           payee_name: transaction.payee,
           imported_id: transaction.dedupId,
           date: transaction.date,
+          notes: "#mail-bean",
           cleared: true,
         };
       }),

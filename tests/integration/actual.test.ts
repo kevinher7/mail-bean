@@ -108,6 +108,7 @@ const readStoredTransactions = async (accountIds: string[]) => {
         amount: transaction.amount,
         payee: payeeNameById.get(transaction.payee ?? "")?.toLowerCase(),
         dedupId: transaction.imported_id ?? "",
+        notes: transaction.notes,
       })),
     );
   }
@@ -122,6 +123,7 @@ const expectedStoredTransactions = (transactions: Transaction[]) =>
       amount,
       payee: payee.toLowerCase(),
       dedupId,
+      notes: "#mail-bean",
     }))
     .toSorted((a, b) => a.dedupId.localeCompare(b.dedupId));
 
