@@ -22,6 +22,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "test": "vitest run",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
     "check": "npm run typecheck && npm run format:check && npm run lint && npm test"
   },
   "dependencies": {
