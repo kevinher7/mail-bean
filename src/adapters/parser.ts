@@ -1,15 +1,7 @@
 import { simpleParser, type ParsedMail } from "mailparser";
-import type { RawEmail } from "./gmail.js";
 
-type Transaction = {
-  date: string;
-  time: string; // JST, as stated in the emails
-  amount: number;
-  currency: string;
-  sourceAccount: string; // TODO: Make into enum
-  payee: string;
-  dedupId: string;
-};
+import type { Transaction } from "../contracts.js";
+import type { RawEmail } from "./gmail.js";
 
 type Issuer = {
   sourceAccount: "yucho" | "smbc";
