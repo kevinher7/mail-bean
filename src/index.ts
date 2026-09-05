@@ -1,9 +1,9 @@
 import { fetchGmailMessages } from "./adapters/gmail.js";
 import { parseEmailsTransactions } from "./adapters/parser.js";
-import { config } from "./config.js";
+import { gmailConfig } from "./config.js";
 
 export const main = async () => {
-  const emails = await fetchGmailMessages(config);
+  const emails = await fetchGmailMessages(gmailConfig());
 
   if (emails.length == 0) {
     console.log("No new emails to parse");
