@@ -23,15 +23,15 @@ depends only on the normalized shape, never on a specific email format or budget
 
 ## 1. Stack
 
-| Decision | Choice |
-|---|---|
-| Language | TypeScript on Node |
-| Package manager | **npm** |
-| Modules | ESM (`"type": "module"`, `moduleResolution: "nodenext"`) |
-| Test runner | vitest |
-| Dev execution | `tsx` |
-| Linter | **oxlint** + `oxlint-tsgolint` for type-aware rules |
-| Formatter | none yet |
+| Decision        | Choice                                                   |
+| --------------- | -------------------------------------------------------- |
+| Language        | TypeScript on Node                                       |
+| Package manager | **npm**                                                  |
+| Modules         | ESM (`"type": "module"`, `moduleResolution: "nodenext"`) |
+| Test runner     | vitest                                                   |
+| Dev execution   | `tsx`                                                    |
+| Linter          | **oxlint** + `oxlint-tsgolint` for type-aware rules      |
+| Formatter       | none yet                                                 |
 
 **TypeScript 7 (the native compiler) is what forces oxlint.** The `typescript@7`
 package ships no JS compiler API — `lib/` contains only `tsc.js` and `version.cjs` —
@@ -59,13 +59,13 @@ Reversible later via `pnpm import`.
 
 ### Runtime dependencies
 
-| Package | Purpose | Native code | Status |
-|---|---|---|---|
-| `@stricli/core` | CLI | no | not yet installed |
-| `@googleapis/gmail` | Gmail | no | installed |
-| `@actual-app/api` | sink | **yes** — better-sqlite3 | next step |
-| `mailparser` | MIME + ISO-2022-JP decoding | no | installed |
-| `zod` | config + parser output validation | no | installed, not yet used |
+| Package             | Purpose                           | Native code              | Status                  |
+| ------------------- | --------------------------------- | ------------------------ | ----------------------- |
+| `@stricli/core`     | CLI                               | no                       | not yet installed       |
+| `@googleapis/gmail` | Gmail                             | no                       | installed               |
+| `@actual-app/api`   | sink                              | **yes** — better-sqlite3 | next step               |
+| `mailparser`        | MIME + ISO-2022-JP decoding       | no                       | installed               |
+| `zod`               | config + parser output validation | no                       | installed, not yet used |
 
 Only `@actual-app/api` requires a compiler. Confirm the exact native dep with
 `npm ls better-sqlite3` after the first install — the assumption is that it is pulled
@@ -79,18 +79,18 @@ Four seams, each with two or more real implementations. That test is what qualif
 something as a port; anything with a single implementation (config, logging, clock)
 stays a plain module.
 
-| Port | Implementations |
-|---|---|
-| `MailSource` | `gmail`, `maildir` |
-| `Parser` | one per issuer, dispatched by a registry |
-| `Sink` | `actual` — **one implementation**, see below |
-| `Classifier` | `openai` (local LLM), `null` (default) |
+| Port         | Implementations                              |
+| ------------ | -------------------------------------------- |
+| `MailSource` | `gmail`, `maildir`                           |
+| `Parser`     | one per issuer, dispatched by a registry     |
+| `Sink`       | `actual` — **one implementation**, see below |
+| `Classifier` | `openai` (local LLM), `null` (default)       |
 
 `Sink` is the exception to the two-implementations rule. The CSV sink was dropped
 (see Rejected alternatives), leaving `actual` alone. It stays a seam anyway because it
 is the only component that needs a native compiler, a server and a credential to
 construct — so the alternative to a fake is that no pipeline test can run at all. The
-rule is therefore: **two or more real implementations, *or* a single implementation
+rule is therefore: **two or more real implementations, _or_ a single implementation
 whose construction is too expensive to reach from a test.** Nothing else in the system
 qualifies under the second clause.
 
@@ -107,11 +107,11 @@ commands/    imports wiring + pipeline
 ```
 
 **`pipeline.ts`, `ports.ts`, `domain/` and `parsers/` must not import from `adapters/`,
-`commands/`, or `wiring.ts`.** This constraint *is* the architecture; the folder names
+`commands/`, or `wiring.ts`.** This constraint _is_ the architecture; the folder names
 are incidental.
 
 Enforced with oxlint `no-restricted-imports` inside `overrides` in `.oxlintrc.json`,
-one entry per layer, strictest last. Note the options are *not* merged when two
+one entry per layer, strictest last. Note the options are _not_ merged when two
 overrides set the same rule — the later one replaces the earlier wholesale, so each
 entry must be self-contained. `excludeFiles` lets the base entry deny by default so a
 new top-level file is covered without being listed.
@@ -149,10 +149,17 @@ Ports with a single job are **function types**, not interfaces. Adapters are fac
 functions returning closures. No classes, no `implements`, no `new` outside `wiring.ts`.
 
 ```ts
-export type Sink = (txns: Transaction[], opts?: { dryRun?: boolean }) => Promise<WriteResult>;
-export type Classifier = (t: Transaction, cats: string[]) => Promise<string | null>;
+export type Sink = (
+  txns: Transaction[],
+  opts?: { dryRun?: boolean },
+) => Promise<WriteResult>;
+export type Classifier = (
+  t: Transaction,
+  cats: string[],
+) => Promise<string | null>;
 
-export interface MailSource {          // two methods that must travel together
+export interface MailSource {
+  // two methods that must travel together
   fetchUnprocessed(limit?: number): AsyncIterable<RawEmail>;
   markProcessed(email: RawEmail): Promise<void>;
 }
@@ -174,22 +181,22 @@ The central boundary. Every parser emits it; every sink consumes it.
 
 ```ts
 export const Transaction = z.object({
-  date:          z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  time:          z.string().regex(/^\d{2}:\d{2}:\d{2}$/), // JST, as printed in the mail
-  amount:        z.number().int(),      // minor units, signed, negative = outflow
-  currency:      z.literal("JPY"),
-  sourceAccount: z.string(),            // logical name, NOT an Actual UUID
-  payee:         z.string(),
-  dedupId:       z.string(),
-  memo:          z.string().optional(),
-  category:      z.string().optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  time: z.string().regex(/^\d{2}:\d{2}:\d{2}$/), // JST, as printed in the mail
+  amount: z.number().int(), // minor units, signed, negative = outflow
+  currency: z.literal("JPY"),
+  sourceAccount: z.string(), // logical name, NOT an Actual UUID
+  payee: z.string(),
+  dedupId: z.string(),
+  memo: z.string().optional(),
+  category: z.string().optional(),
 });
 ```
 
 - **Integer minor units.** Never floats.
 - **`sourceAccount` is a logical name.** The logical → Actual UUID mapping lives in
-  operator config (`accountMap`), not in any parser. *(Resolves the issue's
-  "where does account-routing config live" question.)*
+  operator config (`accountMap`), not in any parser. _(Resolves the issue's
+  "where does account-routing config live" question.)_
 - **`RawEmail.body` is already decoded UTF-8.** Encoding handling (ISO-2022-JP,
   Shift_JIS) belongs to the mail adapter, so no parser ever sees an encoding.
 - **`time` is carried but not sent to Actual**, which stores a date only. It is kept
@@ -202,7 +209,7 @@ export const Transaction = z.object({
   ran. If a message pointer is wanted later, the thing to store is the RFC 5322
   `Message-ID` header, not the API id: it is searchable from the Gmail UI as
   `rfc822msgid:<value>`, it survives export, and `maildir` can produce it too. The place
-  it will actually earn its keep is the *unparsed* mail path (exit code 1, §6), which
+  it will actually earn its keep is the _unparsed_ mail path (exit code 1, §6), which
   holds the `RawEmail` already and needs no field on `Transaction`.
 
 ### Idempotency
@@ -210,7 +217,7 @@ export const Transaction = z.object({
 `dedupId` is passed to Actual as `imported_id`, which Actual dedups on per account.
 
 ```ts
-`${sourceAccount}-${approvalNumber}`   // e.g. "smbc-471570"
+`${sourceAccount}-${approvalNumber}`; // e.g. "smbc-471570"
 ```
 
 **This replaces the original content hash** (`sha256([parserId, date, amount, payeeRaw,
@@ -281,14 +288,14 @@ six subcommands.
 
 ### Commands
 
-| Command | Purpose | Needs credentials |
-|---|---|---|
-| `run` | fetch, parse, push, label | yes |
-| `run --dry-run` | real Gmail, JSON out, writes nothing | Gmail only |
-| `replay <dir>` | `.eml` directory → JSON on stdout, fully offline | no |
-| `parse <file.eml>` | one file → JSON on stdout | no |
-| `auth` | one-time OAuth consent, prints refresh token | no |
-| `accounts` | list Actual account names + UUIDs | Actual only |
+| Command            | Purpose                                          | Needs credentials |
+| ------------------ | ------------------------------------------------ | ----------------- |
+| `run`              | fetch, parse, push, label                        | yes               |
+| `run --dry-run`    | real Gmail, JSON out, writes nothing             | Gmail only        |
+| `replay <dir>`     | `.eml` directory → JSON on stdout, fully offline | no                |
+| `parse <file.eml>` | one file → JSON on stdout                        | no                |
+| `auth`             | one-time OAuth consent, prints refresh token     | no                |
+| `accounts`         | list Actual account names + UUIDs                | Actual only       |
 
 Convention: data to stdout, structured JSONL events to stderr.
 
@@ -304,9 +311,9 @@ names exactly by default, so a `dryRun` flag would only accept `--dryRun`.
 
 Two distinct contexts. Do not merge them:
 
-- **`AppContext`** (Stricli) — *ambient*: stdout/stderr, env, clock, resolved config,
+- **`AppContext`** (Stricli) — _ambient_: stdout/stderr, env, clock, resolved config,
   abort signal. Cheap, no I/O, built once in `src/index.ts`, arrives as `this`.
-- **`Deps`** (pipeline) — *expensive and flag-dependent*: Gmail client, Actual
+- **`Deps`** (pipeline) — _expensive and flag-dependent_: Gmail client, Actual
   connection. Built per-command inside the impl, **after** flags are known, because the
   object graph differs by flag.
 
@@ -324,13 +331,13 @@ SQLite handle is released.
 
 **systemd oneshot + timer. Not a long-running daemon.**
 
-| | |
-|---|---|
-| `Type` | `oneshot` |
-| `ExecStart` | `mail-bean run` |
-| `OnCalendar` | `*:0/20` |
-| `Persistent` | `true` — a missed run fires after boot |
-| `RandomizedDelaySec` | `2m` |
+|                      |                                        |
+| -------------------- | -------------------------------------- |
+| `Type`               | `oneshot`                              |
+| `ExecStart`          | `mail-bean run`                        |
+| `OnCalendar`         | `*:0/20`                               |
+| `Persistent`         | `true` — a missed run fires after boot |
+| `RandomizedDelaySec` | `2m`                                   |
 
 Push-based delivery was rejected: Gmail `watch` requires a Cloud Pub/Sub topic plus a
 public HTTPS endpoint or pull subscriber, and the registration expires every 7 days.
@@ -360,12 +367,12 @@ pipeline. Nothing here forecloses it.
 
 ### Exit codes
 
-| Code | Meaning | systemd |
-|---|---|---|
-| 0 | success | — |
-| 1 | partial failure, some messages unparsed | alert, retry next tick |
-| 75 | `EX_TEMPFAIL` — Actual/network unreachable | `Restart=on-failure` |
-| 78 | `EX_CONFIG` — missing creds, dead token | `RestartPreventExitStatus=78` |
+| Code | Meaning                                    | systemd                       |
+| ---- | ------------------------------------------ | ----------------------------- |
+| 0    | success                                    | —                             |
+| 1    | partial failure, some messages unparsed    | alert, retry next tick        |
+| 75   | `EX_TEMPFAIL` — Actual/network unreachable | `Restart=on-failure`          |
+| 78   | `EX_CONFIG` — missing creds, dead token    | `RestartPreventExitStatus=78` |
 
 ---
 
@@ -375,7 +382,7 @@ pipeline. Nothing here forecloses it.
 
 - Scope: **`gmail.modify`** — `readonly` cannot write labels.
 - Credential type: **Desktop app**, for the loopback redirect (no hosted callback).
-- Publishing status: **Production (unverified)**. In *Testing*, refresh tokens expire
+- Publishing status: **Production (unverified)**. In _Testing_, refresh tokens expire
   every 7 days, which breaks the service weekly. Production-unverified costs one
   "Google hasn't verified this app" screen, once.
 - The consent URL needs **both `access_type=offline` and `prompt=consent`** — without
@@ -417,12 +424,12 @@ path, since aws-vault gives nothing for GCP. Not `my-infra`.
 The durable secret and the derived one are split, which is only possible because the
 service is oneshot:
 
-| Value | Storage | Rotates |
-|---|---|---|
-| `client_id`, sync id | plain module option (not secret) | no |
-| `client_secret`, `refresh_token` | sops | rarely |
-| Actual password, E2E key | sops | rarely |
-| `access_token` | **memory, per run** | every run |
+| Value                            | Storage                          | Rotates   |
+| -------------------------------- | -------------------------------- | --------- |
+| `client_id`, sync id             | plain module option (not secret) | no        |
+| `client_secret`, `refresh_token` | sops                             | rarely    |
+| Actual password, E2E key         | sops                             | rarely    |
+| `access_token`                   | **memory, per run**              | every run |
 
 The process lives ~5 seconds, so it exchanges refresh → access on each run and never
 writes anything back. `/run/secrets` being read-only is therefore a non-issue, and the
@@ -438,17 +445,17 @@ The nixos sops template and `config.ts` must agree on these exactly. `.env.dist`
 this repo is the committed reference copy, with fake values of the right shape; `.env`
 is the local-development stand-in for `EnvironmentFile` and is gitignored.
 
-| Variable | Secret |
-|---|---|
-| `MAIL_BEAN_GOOGLE_CLIENT_ID` | no |
-| `MAIL_BEAN_GOOGLE_CLIENT_SECRET` | yes |
-| `MAIL_BEAN_GOOGLE_REFRESH_TOKEN` | yes |
-| `MAIL_BEAN_ACTUAL_SERVER_URL` | no |
-| `MAIL_BEAN_ACTUAL_SYNC_ID` | no |
-| `MAIL_BEAN_ACTUAL_PASSWORD` | yes |
-| `MAIL_BEAN_ACTUAL_E2E_PASSWORD` | yes — only if E2E is enabled |
-| `MAIL_BEAN_ACTUAL_DATA_DIR` | no — local budget cache, gitignored |
-| `MAIL_BEAN_ACCOUNT_MAP` | no — §3's `accountMap`, JSON |
+| Variable                         | Secret                              |
+| -------------------------------- | ----------------------------------- |
+| `MAIL_BEAN_GOOGLE_CLIENT_ID`     | no                                  |
+| `MAIL_BEAN_GOOGLE_CLIENT_SECRET` | yes                                 |
+| `MAIL_BEAN_GOOGLE_REFRESH_TOKEN` | yes                                 |
+| `MAIL_BEAN_ACTUAL_SERVER_URL`    | no                                  |
+| `MAIL_BEAN_ACTUAL_SYNC_ID`       | no                                  |
+| `MAIL_BEAN_ACTUAL_PASSWORD`      | yes                                 |
+| `MAIL_BEAN_ACTUAL_E2E_PASSWORD`  | yes — only if E2E is enabled        |
+| `MAIL_BEAN_ACTUAL_DATA_DIR`      | no — local budget cache, gitignored |
+| `MAIL_BEAN_ACCOUNT_MAP`          | no — §3's `accountMap`, JSON        |
 
 `MAIL_BEAN_ACCOUNT_MAP` as JSON-in-env is provisional: it is awkward to hand-edit and
 malforms silently. A gitignored `accounts.json` may age better. Decide when `config.ts`
@@ -529,7 +536,7 @@ mail-bean/
 
 **Goldens are only ever rewritten by an explicit `vitest -u`.** A normal `vitest run`
 never touches an existing golden; it fails on any diff. The one implicit write is a
-*missing* golden being created on first run, and even that fails instead of writing when
+_missing_ golden being created on first run, and even that fails instead of writing when
 `CI` is set — which is why goldens are committed. The workflow is therefore `-u`, read
 the diff, then commit: the assertion is not "the suite went green", it is "the change
 was reviewed".
@@ -562,23 +569,23 @@ and 4 of the original plan. It worked out — real mail proved the parsers early
 regex-per-issuer shape survived contact — but it means the dependency rule in §2 has
 never been enforced against anything, because none of the layers it names exist yet.
 
-1. ~~**Contract first**~~ — *superseded.* Toolchain is done. `domain/*` and `ports.ts`
+1. ~~**Contract first**~~ — _superseded._ Toolchain is done. `domain/*` and `ports.ts`
    were never extracted; `Transaction` currently lives as a plain type inside
    `adapters/parser.ts`. `dedup.test.ts` is no longer needed at all — §3's `dedupId` is
    now a template string over a field the parser already captures, not a hash with its
    own module.
-2. **Parsers + Gmail source + golden harness** — *done.* Two issuers (yucho, smbc),
+2. **Parsers + Gmail source + golden harness** — _done._ Two issuers (yucho, smbc),
    scrubbed fixtures, committed goldens, `npm run check` green.
-3. **Actual sink** ← *next.* Against a throwaway budget file first. Populate `accountMap`
+3. **Actual sink** ← _next._ Against a throwaway budget file first. Populate `accountMap`
    once `accounts` can read the UUIDs back. This is the first step needing a native
    toolchain. See `docs/02-actual-sink.md`.
 4. **Extract the seams** — `domain/`, `ports.ts`, `pipeline.ts`, `parsers/registry.ts`,
-   and the oxlint `no-restricted-imports` overrides that enforce §2. Deliberately *after*
+   and the oxlint `no-restricted-imports` overrides that enforce §2. Deliberately _after_
    the sink: the sink is the second real consumer of `Transaction`, and extracting a
    contract with one consumer is guessing. Adding the third issuer is the trigger for
    `parsers/registry.ts` specifically.
-5. **`maildir` source + `replay`** — the offline path. *The parsers must not change by a
-   single line.* If they do, something has leaked across a seam. This is now the step
+5. **`maildir` source + `replay`** — the offline path. _The parsers must not change by a
+   single line._ If they do, something has leaked across a seam. This is now the step
    that tests §2's central claim, since the Gmail source came first.
 6. **CLI** (`@stricli/core`), then `flake.nix`, nixos module, timer.
 7. **Classifier** last, off by default.
@@ -603,14 +610,14 @@ never been enforced against anything, because none of the layers it names exist 
   ingests only the immediate 利用通知 (auth) mail per issuer and the registry drops
   settlement/statement mail. Reconciling both is a matching problem not worth solving
   in v1; Actual's own reconciliation UI covers the remainder.
-- ~~**Duplicate-purchase collisions.**~~ *Resolved* by keying `dedupId` on the issuer's
+- ~~**Duplicate-purchase collisions.**~~ _Resolved_ by keying `dedupId` on the issuer's
   approval number instead of a content hash — see §3. The residual risk is approval-number
   recycling, which is recorded there.
 - **Category list source for the classifier.** Lean: read it live from Actual over the
   existing sink connection, so there is one source of truth and no drift.
 - **Where the source-assigned message id gets attached, if it ever does.** §3 removed
   `rawRef` from the contract. The open part is the unparsed-mail path: exit code 1 says
-  "some messages unparsed" but nothing yet says *which*, and that is where a
+  "some messages unparsed" but nothing yet says _which_, and that is where a
   `rfc822msgid:` pointer belongs.
 - **`sourceAccount` is `string` in the schema but a union in the parser.** The
   implementation has `"yucho" | "smbc"` with a `TODO: Make into enum`. Widening to
@@ -621,25 +628,25 @@ never been enforced against anything, because none of the layers it names exist 
 
 ## Rejected alternatives
 
-| Option | Why not |
-|---|---|
-| Python + `actualpy` | Community reimplementation; lags Actual releases. Sink is the riskiest seam. |
-| Hybrid Python parse + Node sink | Best of both, but two toolchains in one flake is more nix work than either pure option. |
-| pnpm | `pnpm.configHook` does no native rebuild; requires manual `preBuild`, `fetcherVersion`, `onlyBuiltDependencies`. |
-| Long-running daemon / Pub/Sub / IMAP IDLE | Infrastructure and reconnect logic for latency that does not matter. |
-| `commander`, `cac`, `citty`, `clipanion`, `oclif`, `yargs` | See §5. |
-| `util.parseArgs` | No routing or help generation; 150–200 untyped lines at six commands. |
-| Auto-discovered commands | See §8. |
-| Classes + `implements` for ports | Structural typing makes it ceremony; function types and factories are leaner. |
-| A database for processed state | The Gmail label already is the state. |
-| A `csv` sink | Dropped. It existed to give `Sink` a second implementation and to make `--dry-run`/`replay` printable, but JSON on stdout does both jobs with no sink, no column ordering to bikeshed, and no breakage when an optional field is added. `jq` covers the spreadsheet case. See §5. |
-| `rawRef` on `Transaction` | Written, never read, and unproducible by the `maildir` source. See §3. |
-| `seq` in `dedupId` | Made unnecessary by keying on the issuer's approval number. See §3. |
-| `typescript-eslint`, `dependency-cruiser` | Neither supports TypeScript 7. See §1. |
-| Nested per-directory `.oxlintrc.json` | Silently drops the root's `rules` and `categories` without `extends`. See §2. |
-| `rimraf` in the build script | POSIX `rm -rf` is enough; deployment is NixOS, development is darwin. |
-| `tsc -b --clean` | Only deletes outputs of files that still exist, so renamed and deleted sources leave stale output behind — the exact case cleaning is for. |
-| Terraforming the GCP OAuth setup | No provider support for the consent screen, non-IAP clients, or publishing status. See §7. |
-| Secrets pulled from the Terraform S3 state | State is not a secret store, and the server would need a durable AWS key to read it. See §7. |
-| Cross-cloud IAM federation for secret delivery | Needs a cloud workload identity; the service is self-hosted. See §7. |
-| `my-infra` for mail-bean's cloud resources | `infra` is the chosen home, even though it is AWS-only today. |
+| Option                                                     | Why not                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Python + `actualpy`                                        | Community reimplementation; lags Actual releases. Sink is the riskiest seam.                                                                                                                                                                                                      |
+| Hybrid Python parse + Node sink                            | Best of both, but two toolchains in one flake is more nix work than either pure option.                                                                                                                                                                                           |
+| pnpm                                                       | `pnpm.configHook` does no native rebuild; requires manual `preBuild`, `fetcherVersion`, `onlyBuiltDependencies`.                                                                                                                                                                  |
+| Long-running daemon / Pub/Sub / IMAP IDLE                  | Infrastructure and reconnect logic for latency that does not matter.                                                                                                                                                                                                              |
+| `commander`, `cac`, `citty`, `clipanion`, `oclif`, `yargs` | See §5.                                                                                                                                                                                                                                                                           |
+| `util.parseArgs`                                           | No routing or help generation; 150–200 untyped lines at six commands.                                                                                                                                                                                                             |
+| Auto-discovered commands                                   | See §8.                                                                                                                                                                                                                                                                           |
+| Classes + `implements` for ports                           | Structural typing makes it ceremony; function types and factories are leaner.                                                                                                                                                                                                     |
+| A database for processed state                             | The Gmail label already is the state.                                                                                                                                                                                                                                             |
+| A `csv` sink                                               | Dropped. It existed to give `Sink` a second implementation and to make `--dry-run`/`replay` printable, but JSON on stdout does both jobs with no sink, no column ordering to bikeshed, and no breakage when an optional field is added. `jq` covers the spreadsheet case. See §5. |
+| `rawRef` on `Transaction`                                  | Written, never read, and unproducible by the `maildir` source. See §3.                                                                                                                                                                                                            |
+| `seq` in `dedupId`                                         | Made unnecessary by keying on the issuer's approval number. See §3.                                                                                                                                                                                                               |
+| `typescript-eslint`, `dependency-cruiser`                  | Neither supports TypeScript 7. See §1.                                                                                                                                                                                                                                            |
+| Nested per-directory `.oxlintrc.json`                      | Silently drops the root's `rules` and `categories` without `extends`. See §2.                                                                                                                                                                                                     |
+| `rimraf` in the build script                               | POSIX `rm -rf` is enough; deployment is NixOS, development is darwin.                                                                                                                                                                                                             |
+| `tsc -b --clean`                                           | Only deletes outputs of files that still exist, so renamed and deleted sources leave stale output behind — the exact case cleaning is for.                                                                                                                                        |
+| Terraforming the GCP OAuth setup                           | No provider support for the consent screen, non-IAP clients, or publishing status. See §7.                                                                                                                                                                                        |
+| Secrets pulled from the Terraform S3 state                 | State is not a secret store, and the server would need a durable AWS key to read it. See §7.                                                                                                                                                                                      |
+| Cross-cloud IAM federation for secret delivery             | Needs a cloud workload identity; the service is self-hosted. See §7.                                                                                                                                                                                                              |
+| `my-infra` for mail-bean's cloud resources                 | `infra` is the chosen home, even though it is AWS-only today.                                                                                                                                                                                                                     |

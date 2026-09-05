@@ -1,6 +1,8 @@
-import { parseEmailsTransactions } from "../src/adapters/parser.js";
 import { readdir, readFile } from "node:fs/promises";
+
 import { expect, test } from "vitest";
+
+import { parseEmailsTransactions } from "../src/adapters/parser.js";
 
 const fixturesPath = new URL("./fixtures/", import.meta.url);
 

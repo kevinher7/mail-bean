@@ -14,7 +14,7 @@ Write nothing anywhere.
 Gmail → Parse → Normalize → JSON on stdout
 ```
 
-Originally this said *CSV*. The CSV sink has been dropped project-wide — see
+Originally this said _CSV_. The CSV sink has been dropped project-wide — see
 architecture.md §5 and Rejected alternatives. JSON is what every read-only command emits
 now.
 
@@ -41,18 +41,18 @@ and:
 The build order was inverted. §3 (Gmail source) was built before §1 (contract) and §2
 (offline slice), so the milestone completed from the other end.
 
-| Planned | Actual |
-|---|---|
-| §1 `domain/*`, `ports.ts`, `dedup.test.ts` | **not built.** `Transaction` is a plain type inside `adapters/parser.ts`. `dedup.ts` is no longer needed — `dedupId` is now a template string, not a hash. |
-| §2 `maildir` source, sink, `parsers/registry.ts`, `pipeline.ts` | **not built.** Parsers are a sender-keyed regex table in `adapters/parser.ts`. |
-| §2 golden harness | **built** — `tests/parser.test.ts`, two fixtures, two goldens. |
-| §3 `config.ts`, Gmail adapter, driver | **built** — `config.ts`, `adapters/gmail.ts`, `src/index.ts`. |
+| Planned                                                         | Actual                                                                                                                                                     |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| §1 `domain/*`, `ports.ts`, `dedup.test.ts`                      | **not built.** `Transaction` is a plain type inside `adapters/parser.ts`. `dedup.ts` is no longer needed — `dedupId` is now a template string, not a hash. |
+| §2 `maildir` source, sink, `parsers/registry.ts`, `pipeline.ts` | **not built.** Parsers are a sender-keyed regex table in `adapters/parser.ts`.                                                                             |
+| §2 golden harness                                               | **built** — `tests/parser.test.ts`, two fixtures, two goldens.                                                                                             |
+| §3 `config.ts`, Gmail adapter, driver                           | **built** — `config.ts`, `adapters/gmail.ts`, `src/index.ts`.                                                                                              |
 
 What this bought: real mail exercised the parsers immediately, and the regex-per-issuer
 shape survived contact with both issuers' encodings before any abstraction was committed
 to. What it cost: §2's dependency rule has never been enforced against anything, because
-none of the layers it names exist; and the milestone's headline proof — *swapping the
-source changes no line under `parsers/`* — **has not been demonstrated**, because there
+none of the layers it names exist; and the milestone's headline proof — _swapping the
+source changes no line under `parsers/`_ — **has not been demonstrated**, because there
 is only one source. That proof moves to architecture.md §9 step 5.
 
 The two remaining pieces of this milestone (`maildir` source, `replay`) are deliberately
@@ -71,7 +71,7 @@ Manual console work. See architecture.md §7 for why this is not Terraform.
 
 1. Create project, enable the Gmail API.
 2. OAuth consent screen, type **External**.
-3. **Set publishing status to Production** — do this *before* generating a refresh
+3. **Set publishing status to Production** — do this _before_ generating a refresh
    token. In Testing the token expires in 7 days and the whole flow gets redone.
 4. Create a **Desktop app** OAuth client (loopback redirect, no hosted callback).
 5. Download `client_secret`, put the values in a local `.env` (see `.env.dist`).
@@ -113,13 +113,13 @@ This is gated on transactions actually arriving in your inbox, so start collecti
 
 architecture.md §9 step 1. No credentials, no network, ~120 lines.
 
-| File | Contents |
-|---|---|
-| `domain/email.ts` | `RawEmail`. Shape is **undecided** — see Open decisions. |
-| `domain/transaction.ts` | The zod schema from §3, verbatim |
-| `domain/dedup.ts` | sha256, NUL-separated, sliced to 32 |
-| `ports.ts` | The four port types from §2, plus `WriteResult` (**undecided**) |
-| `tests/dedup.test.ts` | |
+| File                    | Contents                                                        |
+| ----------------------- | --------------------------------------------------------------- |
+| `domain/email.ts`       | `RawEmail`. Shape is **undecided** — see Open decisions.        |
+| `domain/transaction.ts` | The zod schema from §3, verbatim                                |
+| `domain/dedup.ts`       | sha256, NUL-separated, sliced to 32                             |
+| `ports.ts`              | The four port types from §2, plus `WriteResult` (**undecided**) |
+| `tests/dedup.test.ts`   |                                                                 |
 
 Finishing this clears two failing scripts: `npm test` stops erroring on "no test files
 found", and `unicorn(no-empty-file)` stops firing on the empty `src/index.ts`.
@@ -133,16 +133,16 @@ add them when `domain/` exists, not before.
 
 architecture.md §9 step 2, with one deliberate divergence (see below).
 
-| File | Contents |
-|---|---|
-| `adapters/mail/maildir.ts` | Read a directory of `.eml`, decode with `mailparser` — *deferred to §9 step 5* |
-| ~~`adapters/sink/csv.ts`~~ | Dropped project-wide; read-only commands emit JSON |
-| `parsers/registry.ts` | Dispatch by `matches()` — *deferred; two issuers do not yet need it* |
-| `parsers/<issuer>.ts` | *Deferred;* currently a sender-keyed table in `adapters/parser.ts` |
-| `pipeline.ts` | *Deferred to §9 step 4* |
-| `tests/parser.test.ts` | **Built.** Globs fixtures, one case each, `toMatchFileSnapshot` |
-| `tests/fixtures/*.eml` | **Built** — synthetic only, 2 issuers |
-| `tests/goldens/*.json` | **Built** — committed, reviewable |
+| File                       | Contents                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------ |
+| `adapters/mail/maildir.ts` | Read a directory of `.eml`, decode with `mailparser` — _deferred to §9 step 5_ |
+| ~~`adapters/sink/csv.ts`~~ | Dropped project-wide; read-only commands emit JSON                             |
+| `parsers/registry.ts`      | Dispatch by `matches()` — _deferred; two issuers do not yet need it_           |
+| `parsers/<issuer>.ts`      | _Deferred;_ currently a sender-keyed table in `adapters/parser.ts`             |
+| `pipeline.ts`              | _Deferred to §9 step 4_                                                        |
+| `tests/parser.test.ts`     | **Built.** Globs fixtures, one case each, `toMatchFileSnapshot`                |
+| `tests/fixtures/*.eml`     | **Built** — synthetic only, 2 issuers                                          |
+| `tests/goldens/*.json`     | **Built** — committed, reviewable                                              |
 
 `.eml` is a single message in RFC 5322 MIME form, headers and body as they came off the
 wire. `mailparser` handles the MIME structure, RFC 2047 encoded-word headers, and the
@@ -178,8 +178,9 @@ test.for(fixtures)("%s", async (fixture) => {
   const raw = await readFile(new URL(fixture, FIXTURES));
   const transactions = await parseEmailsTransactions([{ id: fixture, raw }]);
 
-  await expect(`${JSON.stringify(transactions, null, 2)}\n`)
-    .toMatchFileSnapshot(`./goldens/${fixture}.json`);
+  await expect(
+    `${JSON.stringify(transactions, null, 2)}\n`,
+  ).toMatchFileSnapshot(`./goldens/${fixture}.json`);
 });
 ```
 
@@ -196,11 +197,11 @@ and fixture collection are still in flight.
 
 ## 3. Gmail source
 
-| File | Contents |
-|---|---|
-| `config.ts` | env → `Config`. **Built** — hand-rolled, not yet zod. Names in architecture.md §7. |
-| `adapters/gmail.ts` | Query from §4, raw bytes out. **Built** (flat path, not `adapters/mail/`) |
-| `src/index.ts` | Thin credentialed driver — fetch, parse, print. **Built** |
+| File                | Contents                                                                           |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| `config.ts`         | env → `Config`. **Built** — hand-rolled, not yet zod. Names in architecture.md §7. |
+| `adapters/gmail.ts` | Query from §4, raw bytes out. **Built** (flat path, not `adapters/mail/`)          |
+| `src/index.ts`      | Thin credentialed driver — fetch, parse, print. **Built**                          |
 
 Plus a one-off auth flow to obtain the refresh token. The consent URL needs **both**
 `access_type=offline` and `prompt=consent`; without the latter a repeat authorization
@@ -218,7 +219,7 @@ added once `domain/` and `parsers/` exist.
 
 **Known rough edges in the driver**, to clean up when it is replaced or sooner:
 `if (!transactions)` is dead code (`Promise.all` always resolves to an array), and the
-`null` entries *inside* that array — one per unrecognised email — are never filtered or
+`null` entries _inside_ that array — one per unrecognised email — are never filtered or
 reported. That second one is the exit-code-1 path from architecture.md §6 and is
 currently silent.
 

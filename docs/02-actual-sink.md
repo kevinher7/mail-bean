@@ -66,7 +66,7 @@ deployment is NixOS — nothing here ships.
 ```yaml
 services:
   actual:
-    image: actualbudget/actual-server:25.10.0   # PIN — see below
+    image: actualbudget/actual-server:25.10.0 # PIN — see below
     container_name: mail-bean-actual
     ports:
       - "5006:5006"
@@ -89,7 +89,7 @@ useful news if it arrives when you are looking.
 
 **Named volume, persisted.** The budget survives `down`/`up`, so the sync id in
 `.env.test` stays valid and setup is genuinely one-time. The tradeoff is that state
-accumulates across runs — see §3 for why that does *not* leak into the tests.
+accumulates across runs — see §3 for why that does _not_ leak into the tests.
 
 Nuking it is one command when you want a clean slate:
 
@@ -128,10 +128,10 @@ unencrypted, or accept it as a deliberate hole and test it by hand once before p
 
 ## 2. The sink
 
-| File | Contents |
-|---|---|
+| File                      | Contents                                                      |
+| ------------------------- | ------------------------------------------------------------- |
 | `adapters/sink/actual.ts` | `init` → `downloadBudget` → `importTransactions` → `shutdown` |
-| `ports.ts` | Define `Sink` and `WriteResult` — first time either exists |
+| `ports.ts`                | Define `Sink` and `WriteResult` — first time either exists    |
 
 `Sink` is a function type per architecture.md §2. It is the one port with a single
 implementation, which §2 now explicitly permits: constructing the real one needs a
@@ -145,7 +145,7 @@ upstream of it.
 unconditionally.
 
 architecture.md §3 maps `dedupId` → `imported_id`, and §4's ordering guarantee
-("push to the sink first, label only after the sink confirms") is *entirely* load-bearing
+("push to the sink first, label only after the sink confirms") is _entirely_ load-bearing
 on that dedup working — the guarantee is at-least-once, and at-least-once is only safe
 because a re-import is a no-op. Pick the wrong function and every retry silently
 duplicates real financial data.
@@ -178,13 +178,13 @@ mysterious.
 
 Two suites, two configs, one of them opt-in.
 
-| | `npm test` | `npm run test:integration` |
-|---|---|---|
-| Runs in `npm run check` | yes | **no** |
-| Needs Docker | no | yes |
-| Needs credentials | no | `.env.test` |
-| Covers | parsers (goldens), pipeline logic via a fake `Sink` | the real Actual adapter |
-| Speed | ~150ms | seconds |
+|                         | `npm test`                                          | `npm run test:integration` |
+| ----------------------- | --------------------------------------------------- | -------------------------- |
+| Runs in `npm run check` | yes                                                 | **no**                     |
+| Needs Docker            | no                                                  | yes                        |
+| Needs credentials       | no                                                  | `.env.test`                |
+| Covers                  | parsers (goldens), pipeline logic via a fake `Sink` | the real Actual adapter    |
+| Speed                   | ~150ms                                              | seconds                    |
 
 ```jsonc
 // package.json
@@ -194,7 +194,7 @@ Two suites, two configs, one of them opt-in.
 ```
 
 Two small config files rather than `test.projects`: the suites differ only in which
-files they collect, and `projects` exists for genuinely different *configurations*.
+files they collect, and `projects` exists for genuinely different _configurations_.
 
 ```ts
 // vitest.config.ts — the default suite excludes integration
@@ -237,7 +237,7 @@ reimplement whatever you assumed, which is the assumption under test.
 ### Isolation
 
 **Fresh `dataDir` per run** via `mkdtemp`, torn down after. The persisted Docker volume
-holds the *server's* state; the `dataDir` is the client-side budget cache, and reusing it
+holds the _server's_ state; the `dataDir` is the client-side budget cache, and reusing it
 across runs makes dedup results depend on run order — a suite that passes for the wrong
 reason. `.actual/` is already gitignored; a temp dir keeps it out of the tree entirely.
 
