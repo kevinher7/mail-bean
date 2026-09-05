@@ -120,7 +120,7 @@ const expectedStoredTransactions = (transactions: Transaction[]) =>
   transactions
     .map(({ date, amount, payee, dedupId }) => ({
       date,
-      amount,
+      amount: amount * 100,
       payee: payee.toLowerCase(),
       dedupId,
       notes: "#mail-bean",

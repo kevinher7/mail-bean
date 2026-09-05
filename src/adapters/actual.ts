@@ -37,7 +37,7 @@ const writeTransactionsByAccount = async (
       accountTransactions.map((transaction) => {
         return {
           account: accountId,
-          amount: transaction.amount,
+          amount: transaction.amount * 100,
           payee_name: transaction.payee,
           imported_id: transaction.dedupId,
           date: transaction.date,
