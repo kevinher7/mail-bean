@@ -1,15 +1,23 @@
 import { z } from "zod";
 
+const startDateSchema = z
+  .string()
+  .optional()
+  .transform((value) => (value ? new Date(value) : undefined))
+  .pipe(z.date().optional());
+
 const gmailSchema = z
   .object({
     MAIL_BEAN_GOOGLE_CLIENT_ID: z.string().min(1),
     MAIL_BEAN_GOOGLE_CLIENT_SECRET: z.string().min(1),
     MAIL_BEAN_GOOGLE_REFRESH_TOKEN: z.string().min(1),
+    MAIL_BEAN_START_DATE: startDateSchema,
   })
   .transform((env) => ({
     clientId: env.MAIL_BEAN_GOOGLE_CLIENT_ID,
     clientSecret: env.MAIL_BEAN_GOOGLE_CLIENT_SECRET,
     refreshToken: env.MAIL_BEAN_GOOGLE_REFRESH_TOKEN,
+    startDate: env.MAIL_BEAN_START_DATE,
   }));
 
 const accountMapSchema = z

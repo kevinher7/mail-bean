@@ -4,6 +4,7 @@ type GmailConfig = {
   clientId: string;
   clientSecret: string;
   refreshToken: string;
+  startDate: Date | undefined;
 };
 
 const BANK_SENDERS = {
@@ -13,11 +14,15 @@ const BANK_SENDERS = {
 
 const EMAIL_SUBJECTS = ["ご利用のお知らせ"];
 
-const query = [
-  `from:{${Object.values(BANK_SENDERS).join(" ")}}`,
-  `subject:{${Object.values(EMAIL_SUBJECTS).join(" ")}}`,
-  "newer_than:1m",
-].join(" ");
+const emailDateFilter = (startDate?: Date) => {
+  const oneMonthAgo = new Date();
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+  if (startDate && startDate > oneMonthAgo)
+    return `after:${Math.floor(startDate.getTime() / 1000)}`;
+
+  return "newer_than:1m";
+};
 
 export type RawEmail = {
   id: string;
@@ -35,6 +40,12 @@ export const fetchGmailMessages = async (
   auth.setCredentials({ refresh_token: config.refreshToken });
 
   const gmail = gmailClient({ version: "v1", auth });
+
+  const query = [
+    `from:{${Object.values(BANK_SENDERS).join(" ")}}`,
+    `subject:{${Object.values(EMAIL_SUBJECTS).join(" ")}}`,
+    emailDateFilter(config.startDate),
+  ].join(" ");
 
   const { data } = await gmail.users.messages.list({
     userId: "me",
