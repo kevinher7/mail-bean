@@ -83,3 +83,4 @@ const actualSchema = z
 
 export const gmailConfig = () => gmailSchema.parse(process.env);
 export const actualConfig = () => actualSchema.parse(process.env);
+export const runLogPath = () => process.env.MAIL_BEAN_RUN_LOG || undefined;

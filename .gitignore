@@ -9,3 +9,5 @@ dist/
 .actual/
 
 __pycache__/
+
+.bean-logs
