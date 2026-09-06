@@ -17,7 +17,7 @@ There are three separate adapters that are independent from each other
 
 ## Future development
 
-Right now we are keeping things simple and having a single file for each adapter. 
+Right now we are keeping things simple and having a single file for each adapter.
 
 - If sources other than gmail are required, we might create an adatpers/email/ module
 - Parser adapter most likely does not need that treatment
