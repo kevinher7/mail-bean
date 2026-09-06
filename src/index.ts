@@ -17,7 +17,8 @@ export const main = async () => {
   const transactions = parsed.filter((transaction) => transaction !== null);
 
   if (transactions.length === 0) {
-    throw new Error("Failed to find transactions in emails");
+    console.log(`No transactions found in ${parsed.length} emails`);
+    return;
   }
 
   console.log(
