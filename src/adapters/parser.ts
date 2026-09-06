@@ -58,8 +58,6 @@ export const parseEmailsTransactions = async (emails: RawEmail[]) => {
         skipTextLinks: true,
       });
 
-      // TODO: Right now we don't use the minted "id" field from the emails
-      // maybe try to surface a mail url of sorts for easy verification
       return parseTransaction(parsedEmail);
     }),
   );

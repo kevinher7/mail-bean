@@ -3,7 +3,7 @@ export type Transaction = {
   time: string;
   amount: number;
   currency: string;
-  sourceAccount: string; // TODO: Make into enum
+  sourceAccount: string;
   payee: string;
   dedupId: string;
 };
