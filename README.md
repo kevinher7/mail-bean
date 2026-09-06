@@ -35,7 +35,22 @@ npm install
 npm run dev
 ```
 
-Each run fetches the last month of emails and imports the ones Actual has not seen yet. Run it as often as you like, by hand or from cron.
+Each run fetches the last month of emails and imports the ones Actual has not seen yet. Run it as often as you like, by hand or on a schedule.
+
+### On a schedule
+
+Build and install the binary, then point it at your env file from cron:
+
+```sh
+npm run build
+npm install -g .
+```
+
+```
+0 * * * * mail-bean --env /path/to/mail-bean.env
+```
+
+Without `--env`, mail-bean reads its config from the environment it is started in.
 
 ## Development
 
