@@ -8,10 +8,27 @@ import type { Sink, Transaction } from "../contracts.js";
 const writeTransactionsByAccount = async (
   transactions: Transaction[],
   accountMap: Record<string, string>,
+  categoryMap: Record<string, string>,
 ) => {
   const actualAccounts = await actualApi.getAccounts();
   const accountIdByName = new Map(
     actualAccounts.map(({ name, id }) => [name, id]),
+  );
+
+  const actualCategories = await actualApi.getCategories();
+  const categoryIdByName = new Map(
+    actualCategories.map(({ name, id }) => [name, id]),
+  );
+
+  const categoryIdByPayee = new Map(
+    Object.entries(categoryMap).map(([payee, categoryName]) => {
+      const categoryId = categoryIdByName.get(categoryName);
+      if (!categoryId) {
+        throw new Error(`No category named "${categoryName}" in Actual`);
+      }
+
+      return [payee, categoryId];
+    }),
   );
 
   let created = 0;
@@ -35,6 +52,10 @@ const writeTransactionsByAccount = async (
     const result = await actualApi.importTransactions(
       accountId,
       accountTransactions.map((transaction) => {
+        const category = categoryIdByPayee.get(
+          transaction.payee.trim().toLowerCase(),
+        );
+
         return {
           account: accountId,
           amount: transaction.amount * 100,
@@ -43,6 +64,7 @@ const writeTransactionsByAccount = async (
           date: transaction.date,
           notes: "#mail-bean",
           cleared: true,
+          ...(category && { category }),
         };
       }),
     );
@@ -82,7 +104,11 @@ export const syncToActual: Sink = async (transactions) => {
       config.e2ePassword ? { password: config.e2ePassword } : undefined,
     );
 
-    return await writeTransactionsByAccount(transactions, config.accountMap);
+    return await writeTransactionsByAccount(
+      transactions,
+      config.accountMap,
+      config.categoryMap,
+    );
   } finally {
     await actualApi.shutdown();
   }
