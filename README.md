@@ -52,6 +52,10 @@ npm install -g .
 
 Without `--env`, mail-bean reads its config from the environment it is started in.
 
+### With Nix
+
+The repo is a flake. `nix run . -- --env /path/to/mail-bean.env` runs it from a checkout, or add it as an input and wire the package into a systemd timer.
+
 ## Development
 
 ```sh
