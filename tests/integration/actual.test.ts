@@ -12,6 +12,7 @@ import { actualConfig } from "../../src/config.js";
 import type { Transaction } from "../../src/contracts.js";
 
 const goldensPath = new URL("../goldens/", import.meta.url);
+const transferPayeesByTarget = { "ic card": ["Suica Googlepay"] };
 const localHostnames = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 const goldenSchema = z.array(
@@ -116,15 +117,40 @@ const readStoredTransactions = async (accountIds: string[]) => {
   return stored.toSorted((a, b) => a.dedupId.localeCompare(b.dedupId));
 };
 
-const expectedStoredTransactions = (transactions: Transaction[]) =>
+const expectedStoredTransactions = (
+  transactions: Transaction[],
+  accountMap: Record<string, string>,
+  transferMap: Record<string, string[]>,
+) =>
   transactions
-    .map(({ date, amount, payee, dedupId }) => ({
-      date,
-      amount: amount * 100,
-      payee: payee.toLowerCase(),
-      dedupId,
-      notes: "#mail-bean",
-    }))
+    .flatMap(({ date, amount, payee, dedupId, sourceAccount }) => {
+      const transferTarget = Object.keys(transferMap).find((target) =>
+        transferMap[target]!.some(
+          (transferPayee) =>
+            transferPayee.toLowerCase() === payee.toLowerCase(),
+        ),
+      );
+
+      const stored = {
+        date,
+        amount: amount * 100,
+        payee: (transferTarget ?? payee).toLowerCase(),
+        dedupId,
+        notes: "#mail-bean",
+      };
+
+      if (!transferTarget) return [stored];
+
+      return [
+        stored,
+        {
+          ...stored,
+          amount: -stored.amount,
+          payee: accountMap[sourceAccount]!.toLowerCase(),
+          dedupId: "",
+        },
+      ];
+    })
     .toSorted((a, b) => a.dedupId.localeCompare(b.dedupId));
 
 beforeAll(async () => {
@@ -158,15 +184,23 @@ test.for(await loadGoldens())("$file", async ({ transactions }) => {
       `mail-bean tester ${source} ${runId}`,
     ]),
   );
+  const transferMap = Object.fromEntries(
+    Object.entries(transferPayeesByTarget).map(([target, payees]) => [
+      `mail-bean tester ${target} ${runId}`,
+      payees,
+    ]),
+  );
   process.env.MAIL_BEAN_ACCOUNT_MAP = JSON.stringify(accountMap);
+  process.env.MAIL_BEAN_ACTUAL_TRANSFER_MAP = JSON.stringify(transferMap);
 
   const { accountIds, payeeIdsBefore } = await withActualSession(async () => {
     const existingPayeeIds = new Set(
       (await actualApi.getPayees()).map(({ id }) => id),
     );
-    const createdAccountIds = await createTesterAccounts(
-      Object.values(accountMap),
-    );
+    const createdAccountIds = await createTesterAccounts([
+      ...Object.values(accountMap),
+      ...Object.keys(transferMap),
+    ]);
     return {
       accountIds: createdAccountIds,
       payeeIdsBefore: existingPayeeIds,
@@ -194,5 +228,7 @@ test.for(await loadGoldens())("$file", async ({ transactions }) => {
   const stored = await withActualSession(() =>
     readStoredTransactions(accountIds),
   );
-  expect(stored).toEqual(expectedStoredTransactions(transactions));
+  expect(stored).toEqual(
+    expectedStoredTransactions(transactions, accountMap, transferMap),
+  );
 });

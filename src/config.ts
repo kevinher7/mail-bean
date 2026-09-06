@@ -17,26 +17,28 @@ const accountMapSchema = z
   .transform((value) => JSON.parse(value) as unknown)
   .pipe(z.record(z.string(), z.string()));
 
-const categoryMapSchema = z
+const invertPayeeMap = (payeesByTarget: Record<string, string[]>) => {
+  const targetByPayee: Record<string, string> = {};
+
+  for (const [target, payees] of Object.entries(payeesByTarget)) {
+    for (const payee of payees) {
+      const normalizedPayee = payee.trim().toLowerCase();
+      if (targetByPayee[normalizedPayee]) {
+        throw new Error(`Payee "${payee}" is mapped twice`);
+      }
+      targetByPayee[normalizedPayee] = target;
+    }
+  }
+
+  return targetByPayee;
+};
+
+const payeeMapSchema = z
   .string()
   .default("{}")
   .transform((value) => JSON.parse(value) as unknown)
   .pipe(z.record(z.string().min(1), z.array(z.string().min(1))))
-  .transform((payeesByCategory) => {
-    const categoryByPayee: Record<string, string> = {};
-
-    for (const [category, payees] of Object.entries(payeesByCategory)) {
-      for (const payee of payees) {
-        const normalizedPayee = payee.trim().toLowerCase();
-        if (categoryByPayee[normalizedPayee]) {
-          throw new Error(`Payee "${payee}" is mapped to two categories`);
-        }
-        categoryByPayee[normalizedPayee] = category;
-      }
-    }
-
-    return categoryByPayee;
-  });
+  .transform(invertPayeeMap);
 
 const actualSchema = z
   .object({
@@ -46,17 +48,30 @@ const actualSchema = z
     MAIL_BEAN_ACTUAL_E2E_PASSWORD: z.string().optional(),
     MAIL_BEAN_ACTUAL_DATA_DIR: z.string().min(1),
     MAIL_BEAN_ACCOUNT_MAP: accountMapSchema,
-    MAIL_BEAN_ACTUAL_CATEGORY_MAP: categoryMapSchema,
+    MAIL_BEAN_ACTUAL_CATEGORY_MAP: payeeMapSchema,
+    MAIL_BEAN_ACTUAL_TRANSFER_MAP: payeeMapSchema,
   })
-  .transform((env) => ({
-    serverURL: env.MAIL_BEAN_ACTUAL_SERVER_URL,
-    password: env.MAIL_BEAN_ACTUAL_PASSWORD,
-    syncId: env.MAIL_BEAN_ACTUAL_SYNC_ID,
-    e2ePassword: env.MAIL_BEAN_ACTUAL_E2E_PASSWORD || undefined,
-    dataDir: env.MAIL_BEAN_ACTUAL_DATA_DIR,
-    accountMap: env.MAIL_BEAN_ACCOUNT_MAP,
-    categoryMap: env.MAIL_BEAN_ACTUAL_CATEGORY_MAP,
-  }));
+  .transform((env) => {
+    const payeesInBothMaps = Object.keys(
+      env.MAIL_BEAN_ACTUAL_TRANSFER_MAP,
+    ).filter((payee) => payee in env.MAIL_BEAN_ACTUAL_CATEGORY_MAP);
+    if (payeesInBothMaps.length > 0) {
+      throw new Error(
+        `Payees in both category and transfer map: ${payeesInBothMaps.join(", ")}`,
+      );
+    }
+
+    return {
+      serverURL: env.MAIL_BEAN_ACTUAL_SERVER_URL,
+      password: env.MAIL_BEAN_ACTUAL_PASSWORD,
+      syncId: env.MAIL_BEAN_ACTUAL_SYNC_ID,
+      e2ePassword: env.MAIL_BEAN_ACTUAL_E2E_PASSWORD || undefined,
+      dataDir: env.MAIL_BEAN_ACTUAL_DATA_DIR,
+      accountMap: env.MAIL_BEAN_ACCOUNT_MAP,
+      categoryMap: env.MAIL_BEAN_ACTUAL_CATEGORY_MAP,
+      transferMap: env.MAIL_BEAN_ACTUAL_TRANSFER_MAP,
+    };
+  });
 
 export const gmailConfig = () => gmailSchema.parse(process.env);
 export const actualConfig = () => actualSchema.parse(process.env);

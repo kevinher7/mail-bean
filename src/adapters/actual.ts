@@ -9,6 +9,7 @@ const writeTransactionsByAccount = async (
   transactions: Transaction[],
   accountMap: Record<string, string>,
   categoryMap: Record<string, string>,
+  transferMap: Record<string, string>,
 ) => {
   const actualAccounts = await actualApi.getAccounts();
   const accountIdByName = new Map(
@@ -28,6 +29,25 @@ const writeTransactionsByAccount = async (
       }
 
       return [payee, categoryId];
+    }),
+  );
+
+  const transferPayeeIdByAccountId = new Map(
+    (await actualApi.getPayees())
+      .filter((payee) => payee.transfer_acct)
+      .map((payee) => [payee.transfer_acct, payee.id]),
+  );
+
+  const transferPayeeIdByPayee = new Map(
+    Object.entries(transferMap).map(([payee, accountName]) => {
+      const accountId = accountIdByName.get(accountName);
+      const transferPayeeId =
+        accountId && transferPayeeIdByAccountId.get(accountId);
+      if (!transferPayeeId) {
+        throw new Error(`No account named "${accountName}" in Actual`);
+      }
+
+      return [payee, transferPayeeId];
     }),
   );
 
@@ -52,19 +72,23 @@ const writeTransactionsByAccount = async (
     const result = await actualApi.importTransactions(
       accountId,
       accountTransactions.map((transaction) => {
-        const category = categoryIdByPayee.get(
-          transaction.payee.trim().toLowerCase(),
-        );
+        const normalizedPayee = transaction.payee.trim().toLowerCase();
+        const transferPayeeId = transferPayeeIdByPayee.get(normalizedPayee);
+        const category = categoryIdByPayee.get(normalizedPayee);
 
         return {
           account: accountId,
           amount: transaction.amount * 100,
-          payee_name: transaction.payee,
           imported_id: transaction.dedupId,
           date: transaction.date,
           notes: "#mail-bean",
           cleared: true,
-          ...(category && { category }),
+          ...(transferPayeeId
+            ? { payee: transferPayeeId, imported_payee: transaction.payee }
+            : {
+                payee_name: transaction.payee,
+                ...(category && { category }),
+              }),
         };
       }),
     );
@@ -108,6 +132,7 @@ export const syncToActual: Sink = async (transactions) => {
       transactions,
       config.accountMap,
       config.categoryMap,
+      config.transferMap,
     );
   } finally {
     await actualApi.shutdown();
