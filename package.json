@@ -27,19 +27,19 @@
   },
   "dependencies": {
     "@actual-app/api": "^26.9.0",
-    "@googleapis/gmail": "^18.0.0",
-    "mailparser": "^3.9.20",
-    "zod": "^4.5.4"
+    "@googleapis/gmail": "^22.0.1",
+    "mailparser": "^3.9.33",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/mailparser": "^3.4.6",
-    "@types/node": "^26.4.1",
-    "oxfmt": "^0.66.0",
-    "oxlint": "^1.81.0",
+    "@types/mailparser": "^3.9.0",
+    "@types/node": "^26.6.3",
+    "oxfmt": "^0.71.0",
+    "oxlint": "^1.86.0",
     "oxlint-tsgolint": "^7.0.2001",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.3"
   },
   "engines": {
     "node": "^22.22.3"
