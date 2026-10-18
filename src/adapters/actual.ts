@@ -128,12 +128,15 @@ export const syncToActual: Sink = async (transactions) => {
       config.e2ePassword ? { password: config.e2ePassword } : undefined,
     );
 
-    return await writeTransactionsByAccount(
+    const result = await writeTransactionsByAccount(
       transactions,
       config.accountMap,
       config.categoryMap,
       config.transferMap,
     );
+
+    await actualApi.sync();
+    return result;
   } finally {
     await actualApi.shutdown();
   }

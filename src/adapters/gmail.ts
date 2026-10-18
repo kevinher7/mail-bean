@@ -31,6 +31,7 @@ export type RawEmail = {
 
 export const fetchGmailMessages = async (
   config: GmailConfig,
+  processedEmailIds: ReadonlySet<string>,
 ): Promise<RawEmail[]> => {
   const auth = new googleAuth.OAuth2({
     clientId: config.clientId,
@@ -65,7 +66,9 @@ export const fetchGmailMessages = async (
     return [];
   }
 
-  const emailIds = messages.flatMap((m) => (m.id ? [m.id] : []));
+  const emailIds = messages.flatMap((message) =>
+    message.id && !processedEmailIds.has(message.id) ? [message.id] : [],
+  );
 
   const emails = await Promise.all(
     emailIds.map(async (id) => {
