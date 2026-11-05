@@ -14,7 +14,7 @@
         version = "0.1.1";
         src = ./.;
 
-        npmDepsHash = "sha256-fiQY8Yw9Q9V4dRMewNOg4rT1mHK1ZncYfUxRC+2snp4=";
+        npmDepsHash = "sha256-ZBJfDeMl1M1bl9P64e62J87/UHUzqeEaKyh1PTmRlh8=";
 
         nodejs = pkgs.nodejs_22;
         nativeBuildInputs = [pkgs.python3];
