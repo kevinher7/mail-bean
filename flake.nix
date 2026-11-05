@@ -11,10 +11,10 @@
     in {
       default = pkgs.buildNpmPackage {
         pname = "mail-bean";
-        version = "0.1.1";
+        version = "0.2.0";
         src = ./.;
 
-        npmDepsHash = "sha256-ZBJfDeMl1M1bl9P64e62J87/UHUzqeEaKyh1PTmRlh8=";
+        npmDepsHash = "sha256-pnoHlxPeUYj6rt4m4m6nwYHRTdKXOzoJazaADdQtYrs=";
 
         nodejs = pkgs.nodejs_22;
         nativeBuildInputs = [pkgs.python3];
