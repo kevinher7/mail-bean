@@ -19,6 +19,10 @@
         nodejs = pkgs.nodejs_22;
         nativeBuildInputs = [pkgs.python3];
 
+        passthru.actualApiVersion =
+          (nixpkgs.lib.importJSON ./package-lock.json)
+          .packages."node_modules/@actual-app/api".version;
+
         meta.mainProgram = "mail-bean";
       };
     });
