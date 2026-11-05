@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { z } from "zod";
 
 const startDateSchema = z
@@ -84,3 +86,9 @@ const actualSchema = z
 export const gmailConfig = () => gmailSchema.parse(process.env);
 export const actualConfig = () => actualSchema.parse(process.env);
 export const runLogPath = () => process.env.MAIL_BEAN_RUN_LOG || undefined;
+export const emailCachePath = () =>
+  process.env.MAIL_BEAN_EMAIL_CACHE_PATH ||
+  join(
+    z.string().min(1).parse(process.env.MAIL_BEAN_ACTUAL_DATA_DIR),
+    "processed-email-ids.json",
+  );

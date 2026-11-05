@@ -1,11 +1,17 @@
 import { syncToActual } from "./adapters/actual.js";
+import {
+  readProcessedEmailIds,
+  writeProcessedEmailIds,
+} from "./adapters/email-cache.js";
 import { fetchGmailMessages } from "./adapters/gmail.js";
 import { parseEmailsTransactions } from "./adapters/parser.js";
 import { appendRun } from "./adapters/run-log.js";
-import { gmailConfig, runLogPath } from "./config.js";
+import { emailCachePath, gmailConfig, runLogPath } from "./config.js";
 
 const run = async () => {
-  const emails = await fetchGmailMessages(gmailConfig());
+  const cachePath = emailCachePath();
+  const processedEmailIds = await readProcessedEmailIds(cachePath);
+  const emails = await fetchGmailMessages(gmailConfig(), processedEmailIds);
 
   if (emails.length === 0) {
     console.log("No new emails to parse");
@@ -27,6 +33,11 @@ const run = async () => {
   );
 
   const result = await syncToActual(transactions);
+
+  for (const [index, email] of emails.entries()) {
+    if (parsed[index]) processedEmailIds.add(email.id);
+  }
+  await writeProcessedEmailIds(cachePath, processedEmailIds);
 
   console.log(
     `Synced ${result.sent} transactions to Actual: ${result.created} created, ${result.duplicates} duplicates`,

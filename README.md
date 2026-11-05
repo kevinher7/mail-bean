@@ -35,7 +35,11 @@ npm install
 npm run dev
 ```
 
-Each run fetches the last month of emails and imports the ones Actual has not seen yet. Run it as often as you like, by hand or on a schedule.
+Each run lists the last month of emails and downloads only those whose IDs are absent from the local cache. IDs are saved after their transactions sync successfully to Actual, including transactions Actual identifies as duplicates. Emails that cannot be parsed stay eligible for later runs.
+
+The cache defaults to `processed-email-ids.json` inside `MAIL_BEAN_ACTUAL_DATA_DIR`. Set `MAIL_BEAN_EMAIL_CACHE_PATH` to use another path, such as `/var/lib/mail-bean/processed-email-ids.json`. Keep it on persistent storage and use a separate file for each Gmail account and Actual budget. The file contains only email IDs and is written with owner-only permissions. Run one importer at a time.
+
+If the cache is missing, mail-bean downloads the matching emails again and Actual detects existing transactions. A damaged or unreadable cache stops the run. Removing the cache after fixing the underlying problem starts a fresh import. Initial imports and cache misses still use the existing Gmail fetch behavior and can exceed Gmail's quota when many emails need downloading.
 
 ### On a schedule
 
